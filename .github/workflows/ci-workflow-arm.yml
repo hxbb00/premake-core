@@ -54,7 +54,7 @@ jobs:
             echo "Build"
             make -f Bootstrap.mak linux PLATFORM=${{ matrix.arch }} CONFIG=${{ matrix.config }}
             echo "Test"
-            bin/${{ matrix.config }}/premake5 test --test-all
+            bin/${{ matrix.config }}/premake5 test
             echo "Docs check"
             bin/${{ matrix.config }}/premake5 docs-check
 

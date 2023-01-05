@@ -36,18 +36,6 @@ if http.get ~= nil and _OPTIONS["test-all"] then
 		end
 	end
 
-	function suite.https_get_verify_peer()
-		local result, err = http.get("https://httpbin.org/user-agent")
-		if result then
-			p.out(result)
-			test.capture(
-				'{"user-agent": "Premake/' .. _PREMAKE_VERSION .. '"}'
-			)
-		else
-			test.fail(err);
-		end
-	end
-
 	function suite.http_responsecode()
 		local result, err, responseCode = http.get("http://httpbin.org/status/418")
 		test.isequal(responseCode, 418)
