@@ -6,6 +6,12 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-20.04
+    container:
+      image: 'ghcr.io/hxbb00/ubuntu1604:main'
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
+
     strategy:
       matrix:
         config: [debug, release]
