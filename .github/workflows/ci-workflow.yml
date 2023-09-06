@@ -17,6 +17,8 @@ jobs:
         config: [debug, release]
         platform: [x64]
     steps:
+    - name: apt deps
+      run: apt-get install -q -y --no-install-recommends uuid-dev
     - name: Checkout
       uses: actions/checkout@v2
     - name: Build
