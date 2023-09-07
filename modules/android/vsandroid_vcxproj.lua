@@ -447,6 +447,7 @@
 		else
 			vc2010.element("AndroidAppLibName", nil, "$(RootNamespace)")
 		end
+		vc2010.element("AntTarget", nil, iif(premake.config.isDebugBuild(cfg), "debug", "release"))
 		p.pop('</AntPackage>')
 	end
 
@@ -640,7 +641,7 @@ end)
 			return oldfn(cfg)
 		end
 	end)
-	
+
 --
 -- Disable usage of ExternalIncludePath, Android project format ignores it.
 --

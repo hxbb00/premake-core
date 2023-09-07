@@ -13,7 +13,20 @@
 	local msc = p.tools.msc
 	local project = p.project
 	local config = p.config
+	local string = require("string")
 
+	-- string comparison `toolset >= "msc-v142"` won't work with "msc-v80"
+	local function isVersionGreaterOrEqualTo(lhs, rhs)
+		if lhs == nil or rhs == nil then
+			return false
+		end
+		lhs = _G.tonumber(string.match(lhs, "^msc%-v([0-9]+)$"))
+		rhs = _G.tonumber(string.match(rhs, "^msc%-v([0-9]+)$"))
+		if lhs == nil or rhs == nil then
+			return false
+		end
+		return lhs >= rhs
+	end
 
 --
 -- Returns list of C preprocessor flags for a configuration.
@@ -43,6 +56,10 @@
 			Unsafe = "/clr",
 			Pure = "/clr:pure",
 			Safe = "/clr:safe",
+		},
+		compileas = {
+			["C"] = "/TC",
+			["C++"] = "/TP",
 		},
 		flags = {
 			FatalCompileWarnings = "/WX",
@@ -142,11 +159,28 @@
 
 	}
 
+	function msc.getsharedflags(cfg)
+		local shared = config.mapFlags(cfg, msc.shared)
+
+		-- D9007: '/external:I' requires '/external:W'
+		if (#cfg.externalincludedirs > 0 or #cfg.includedirsafter > 0)
+			and cfg.externalwarnings == nil
+			and isVersionGreaterOrEqualTo(cfg.toolset, "msc-v142")
+		then
+			table.insert(shared, msc.shared.externalwarnings.Default)
+		end
+		return shared
+	end
+
 	msc.cflags = {
+		cdialect = {
+			["C11"] = "/std:c11",
+			["C17"] = "/std:c17"
+		}
 	}
 
 	function msc.getcflags(cfg)
-		local shared = config.mapFlags(cfg, msc.shared)
+		local shared = msc.getsharedflags(cfg)
 		local cflags = config.mapFlags(cfg, msc.cflags)
 		local flags = table.join(shared, cflags, msc.getwarnings(cfg))
 		return flags
@@ -158,6 +192,12 @@
 --
 
 	msc.cxxflags = {
+		cppdialect = {
+			["C++14"] = "/std:c++14",
+			["C++17"] = "/std:c++17",
+			["C++20"] = "/std:c++20",
+			["C++latest"] = "/std:c++latest"
+		},
 		exceptionhandling = {
 			Default = "/EHsc",
 			On = "/EHsc",
@@ -173,7 +213,7 @@
 	}
 
 	function msc.getcxxflags(cfg)
-		local shared = config.mapFlags(cfg, msc.shared)
+		local shared = msc.getsharedflags(cfg)
 		local cxxflags = config.mapFlags(cfg, msc.cxxflags)
 		local flags = table.join(shared, cxxflags, msc.getwarnings(cfg))
 		return flags
@@ -255,7 +295,7 @@
 -- Decorate include file search paths for the MSVC command line.
 --
 
-	function msc.getincludedirs(cfg, dirs, extdirs, frameworkdirs)
+	function msc.getincludedirs(cfg, dirs, extdirs, frameworkdirs, includedirsafter)
 		local result = {}
 		for _, dir in ipairs(dirs) do
 			dir = project.getrelative(cfg.project, dir)
@@ -264,7 +304,16 @@
 
 		for _, dir in ipairs(extdirs or {}) do
 			dir = project.getrelative(cfg.project, dir)
-			if cfg.toolset and cfg.toolset >= "msc-v142" then
+			if isVersionGreaterOrEqualTo(cfg.toolset, "msc-v142") then
+				table.insert(result, '/external:I' ..  p.quoted(dir))
+			else
+				table.insert(result, '-I' ..  p.quoted(dir))
+			end
+		end
+
+		for _, dir in ipairs(includedirsafter or {}) do
+			dir = project.getrelative(cfg.project, dir)
+			if isVersionGreaterOrEqualTo(cfg.toolset, "msc-v142") then
 				table.insert(result, '/external:I' ..  p.quoted(dir))
 			else
 				table.insert(result, '-I' ..  p.quoted(dir))
@@ -305,6 +354,17 @@
 	function msc.getldflags(cfg)
 		local map = iif(cfg.kind ~= p.STATICLIB, msc.linkerFlags, msc.librarianFlags)
 		local flags = config.mapFlags(cfg, map)
+
+		if cfg.entrypoint then
+			-- /ENTRY requires that /SUBSYSTEM is set.
+			if cfg.kind == "ConsoleApp" then
+				table.insert(flags, "/SUBSYSTEM:CONSOLE")
+			elseif cfg.kind ~= "WindowedApp" then -- already set by above map
+				table.insert(flags, "/SUBSYSTEM:NATIVE") -- fallback
+			end
+			table.insert(flags, '/ENTRY:' .. cfg.entrypoint)
+		end
+
 		table.insert(flags, 1, "/NOLOGO")
 
 		-- Ignore default libraries
